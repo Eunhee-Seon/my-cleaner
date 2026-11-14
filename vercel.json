@@ -3,6 +3,10 @@
     {
       "source": "/sample.xlsx",
       "destination": "/data/출장비정산.xlsx"
+    },
+    {
+      "source": "/출장비정산.xlsx",
+      "destination": "/data/출장비정산.xlsx"
     }
   ],
   "headers": [
