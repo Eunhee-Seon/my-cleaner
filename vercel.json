@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/sample.xlsx", "destination": "/data/%EC%B6%9C%EC%9E%A5%EB%B9%84%EC%A0%95%EC%82%B0.xlsx" }
+  ],
+  "headers": [
+    {
+      "source": "/sample.xlsx",
+      "headers": [
+        { "key": "Content-Disposition", "value": "attachment; filename=\"travel-expense.xlsx\"; filename*=UTF-8''%EC%B6%9C%EC%9E%A5%EB%B9%84%EC%A0%95%EC%82%B0.xlsx" }
+      ]
+    }
+  ]
+}
