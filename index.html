@@ -98,6 +98,7 @@
       </div>
     </div>
 
+    <div id="drop-preview" class="card" hidden></div>
     <div id="confirm" class="confirm">
       <div id="confirm-text"></div>
       <button id="btn-apply" class="btn primary big">선택한 처방으로 정리 실행</button>
@@ -106,47 +107,60 @@
 
   <!-- 4 결과 ─────────────────────────────────── -->
   <section id="s-result" class="sec" hidden>
-    <div class="sec-h"><h2><span class="n">4</span>원본과 정리본 비교</h2>
-      <p class="muted">원본은 그대로 두고 새 정리본을 만들었습니다. 바뀐 칸을 누르면 전 · 후 값과 처방, 이유가 나옵니다.</p></div>
+    <div class="sec-h"><h2><span class="n">4</span>결과 — 핵심 수치와 금액 대사</h2>
+      <p class="muted">원본은 그대로 두고 새 정리본을 만들었습니다. <b>정리 실행 완료는 업무 승인이 아닙니다.</b> 카드를 누르면 근거 목록으로 내려갑니다.</p></div>
+    <div id="status" class="status"></div>
     <div id="res-kpi" class="kpis"></div>
+    <div id="recon" class="card"></div>
     <p id="idem" class="idem"></p>
-    <div class="tabs" role="tablist">
+    <div class="tabs" role="tablist" id="res-tabs">
       <button role="tab" data-tab="cmp" aria-selected="true">전후 비교</button>
+      <button role="tab" data-tab="review">검토 필요</button>
+      <button role="tab" data-tab="drop">중복 제외</button>
+      <button role="tab" data-tab="log">변경 기록</button>
       <button role="tab" data-tab="orig">원본</button>
       <button role="tab" data-tab="clean">정리본</button>
-      <button role="tab" data-tab="log">변경 기록</button>
-      <button role="tab" data-tab="review">검토 필요</button>
-      <button role="tab" data-tab="drop">제외된 줄</button>
       <button role="tab" data-tab="answer">정답과 대조</button>
     </div>
 
     <div class="tabpane" data-pane="cmp">
       <div class="toolbar">
         <div class="seg" id="cmp-filter" role="group" aria-label="보기">
-          <button data-f="touched" aria-pressed="true">바뀐 · 표시 · 지운 줄만</button>
-          <button data-f="changed" aria-pressed="false">바뀐 줄</button>
-          <button data-f="flagged" aria-pressed="false">검토 필요 줄</button>
-          <button data-f="all" aria-pressed="false">모든 줄</button>
+          <button data-f="all" aria-pressed="true">전체</button>
+          <button data-f="changed" aria-pressed="false">변경된 셀이 있는 줄</button>
+          <button data-f="dropped" aria-pressed="false">중복 제외</button>
+          <button data-f="flagged" aria-pressed="false">검토 필요</button>
         </div>
-        <input id="cmp-q" class="search" type="search" placeholder="값 · 행 번호로 찾기">
+        <input id="cmp-q" class="search" type="search" placeholder="신청번호 · 값 · 행 번호로 찾기">
+        <div class="seg narrow-only" id="pane-switch" role="group" aria-label="표 고르기">
+          <button data-p="left" aria-pressed="true">원본</button><button data-p="right" aria-pressed="false">정리본</button>
+        </div>
       </div>
-      <div class="legend"><span class="sw chg"></span>바뀐 칸 <span class="sw flg"></span>검토 필요(고치지 않음) <span class="sw del"></span>지운 줄</div>
-      <div class="split">
-        <div class="pane"><div class="pane-h">원본</div><div class="tablebox tall" id="cmp-left"></div></div>
-        <div class="pane"><div class="pane-h">정리본</div><div class="tablebox tall" id="cmp-right"></div></div>
+      <div class="legend"><span><span class="sw chg"></span>변경된 셀</span><span><span class="sw del"></span>중복 제외 줄 (취소선)</span><span><span class="ico">⚠</span>검토 필요 — 값은 그대로</span><span class="muted">«글자» = 숫자처럼 보이지만 글자로 저장된 값</span></div>
+      <div class="split show-left">
+        <div class="pane" data-side="left"><div class="pane-h">원본 (파일 그대로)</div><div class="tablebox tall" id="cmp-left"></div></div>
+        <div class="pane" data-side="right"><div class="pane-h">정리본</div><div class="tablebox tall" id="cmp-right"></div></div>
       </div>
       <div id="cell-detail" class="detail" hidden></div>
     </div>
     <div class="tabpane" data-pane="orig" hidden><div class="tablebox tall" id="t-orig"></div></div>
     <div class="tabpane" data-pane="clean" hidden><div class="tablebox tall" id="t-clean"></div></div>
     <div class="tabpane" data-pane="log" hidden>
-      <div class="toolbar"><input id="log-q" class="search" type="search" placeholder="칸 · 값 · 처방으로 찾기"></div>
+      <div class="toolbar"><input id="log-q" class="search" type="search" placeholder="신청번호 · 칸 · 값 · 처방으로 찾기"></div>
       <div class="tablebox tall" id="t-log"></div></div>
     <div class="tabpane" data-pane="review" hidden>
-      <p class="muted small">아래 값은 고치지 않았습니다. 진짜 값은 사람이 확인합니다.</p>
-      <div class="toolbar"><input id="rev-q" class="search" type="search" placeholder="사유 · 값으로 찾기"></div>
+      <p class="muted small">아래 값은 고치지 않았습니다. 진짜 값은 담당자가 증빙으로 확인합니다. 우선순위 1 = 금액 · 데이터 무결성, 2 = 담당자 확인. 이상치 · 고액은 규정 위반이라는 뜻이 아닙니다.</p>
+      <div class="toolbar">
+        <div class="seg" id="rev-filter" role="group" aria-label="우선순위">
+          <button data-r="all" aria-pressed="true">전체</button><button data-r="1" aria-pressed="false">1 · 무결성</button><button data-r="2" aria-pressed="false">2 · 담당자 확인</button>
+        </div>
+        <input id="rev-q" class="search" type="search" placeholder="신청번호 · 사유로 찾기">
+        <span class="grow"></span><span id="rev-progress" class="small muted"></span>
+      </div>
       <div class="tablebox tall" id="t-review"></div></div>
-    <div class="tabpane" data-pane="drop" hidden><div class="tablebox tall" id="t-drop"></div></div>
+    <div class="tabpane" data-pane="drop" hidden>
+      <p class="muted small">모든 칸이 같은 줄이라 처방(«중복»)에 따라 정리본에서 뺐습니다. 원본에는 그대로 있습니다. 같은 신청을 두 번 올린 것이 맞는지 확인하세요 — 맞지 않으면 3단계에서 «중복» 처방을 끄고 다시 실행합니다.</p>
+      <div class="tablebox tall" id="t-drop"></div></div>
     <div class="tabpane" data-pane="answer" hidden>
       <p class="muted small">정답은 완성 기준이 아니라 <b>내 처방이 무엇을 놓쳤는지</b> 보는 거울입니다. 정답 파일은 사이트에 두지 않고 내 컴퓨터에서 고릅니다.</p>
       <label class="btn ghost">정답 파일 고르기<input id="answer-file" type="file" accept=".csv,.xlsx" hidden></label>
@@ -156,11 +170,13 @@
   <!-- 5 내려받기 ─────────────────────────────── -->
   <section id="s-down" class="sec" hidden>
     <div class="sec-h"><h2><span class="n">5</span>내려받기</h2>
-      <p class="muted">이 컴퓨터에서 바로 만들어 내려받습니다. 어디에도 올라가지 않습니다.</p></div>
+      <p class="muted">이 컴퓨터에서 바로 만들어 내려받습니다. 어디에도 올라가지 않습니다. 내려받기 전에 아래 대사를 자동으로 다시 계산합니다.</p></div>
+    <div id="verify" class="verify"></div>
     <div class="downs">
-      <button id="dl-clean" class="dcard"><b>정리본.xlsx</b><span>처방을 적용한 새 파일 · 맨 끝 «_표시» 칸에 검토 사유</span></button>
-      <button id="dl-log" class="dcard"><b>변경기록.xlsx</b><span>바뀐 칸마다 전 · 후 값, 처방, 이유 · 지운 줄</span></button>
-      <button id="dl-review" class="dcard"><b>검토필요목록.xlsx</b><span>고치지 않고 표시한 것 · 규정 판단 불가</span></button>
+      <button id="dl-clean" class="dcard"><b>정리본.xlsx</b><span>정리된 출장 기록 · «검토 사유» 칸 · 숫자/날짜 형식 · 필터 · 머리줄 고정 · 다시 계산한 SUM 합계</span></button>
+      <button id="dl-log" class="dcard"><b>변경기록.xlsx</b><span>바뀐 칸마다 원본 행 · 원본 값 · 정리 값 · 처방 ID · 이유 · 행 제거 여부 · 금액 대사</span></button>
+      <button id="dl-review" class="dcard"><b>검토필요목록.xlsx</b><span>실제 데이터 줄만 · 우선순위 · 필요한 근거 · 처리 상태</span></button>
+      <button id="dl-drop" class="dcard"><b>제외행목록.xlsx</b><span>중복으로 뺀 원본 줄 그대로 · 같은 줄 · 금액 — 되돌리기 · 감사용</span></button>
     </div>
     <p class="small muted">CSV가 필요하면: <button id="dl-log-csv" class="btn link">변경기록.csv</button> · <button id="dl-review-csv" class="btn link">검토필요목록.csv</button> (엑셀에서 한글이 깨지지 않게 저장)</p>
   </section>

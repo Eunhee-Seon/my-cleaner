@@ -39,10 +39,11 @@
   // ── 진단 ─────────────────────────────────────────────────────
   // items: {kind, col, count, rows:[엑셀 행], examples:[{row, value}], note}
   // 이상치는 «후보»일 뿐 오류라는 뜻이 아니다. 진단은 아무것도 고치지 않는다.
-  function diagnose(rows, rules) {
+  function diagnose(rows, rules, opts) {
     const cols = columnsOf(rows);
     const out = { n: rows.length, cols: cols.length, columns: {}, symptoms: [], items: [] };
-    const R = i => i + 2;                                  // 엑셀 행 번호 (머리줄이 1행)
+    const rowNos = opts && opts.rowNos;
+    const R = i => (rowNos ? rowNos[i] : i + 2);           // 원본 엑셀 행 번호 (머리줄이 1행)
     const item = (kind, col, idx, note, valueOf) => {
       if (!idx.length) return;
       out.items.push({
@@ -180,12 +181,14 @@
       for (const k of Object.keys(STEP)) {
         const present = k === "missing" ? r.missing === "flag" : k === "unparsed" ? r.date && r.unparsed === "flag"
           : k === "range" ? r.range && r.range.action === "flag" : k === "blank_to" ? r.blank_to !== undefined : !!r[k];
-        if (present) units.push({ id: `${col}|${k}`, col, step: k, group: STEP[k].group, how: STEP[k].how(r), why: r.why || "" });
+        if (present) units.push({ id: `${col}|${k}`, col, step: k, group: STEP[k].group, how: STEP[k].how(r), why: r.why || "",
+          severity: STEP[k].group === "표시" ? (r.severity || "확인") : "", basis: r.basis || "" });
       }
     }
     ((rules && rules.cross_checks) || []).forEach((cc, i) => units.push({
       id: `cc|${i}`, col: cc.when.map(w => w[0]).join(" · "), step: "cross", group: "표시",
       how: cc.when.map(condText).join(" 이고 ") + ` 이면 «${cc.label}» 표시`, why: cc.why || "", label: cc.label,
+      severity: cc.severity || "확인", basis: cc.basis || "",
     }));
     if (rules && rules.duplicates && rules.duplicates.action === "drop") {
       units.push({ id: "dup", col: "(줄 전체)", step: "dup", group: "지움", how: "모든 칸이 같은 줄은 처음 것만 남기고 지운다", why: rules.duplicates.why || "" });
@@ -234,7 +237,10 @@
     const cols = columnsOf(input);
     const rows = input.map(r => { const o = {}; cols.forEach(c => { o[c] = r[c]; }); o[FLAG] = []; return o; });
     const keyOf = row => (cols.length ? row[cols[0]] : "");
-    const flag = (i, col, reason, rule) => { rows[i][FLAG].push(reason); flags.push({ row: i + 2, col, reason, rule, key: keyOf(rows[i]) }); };
+    const rowNos = opts && opts.rowNos;
+    const RN = i => (rowNos ? rowNos[i] : i + 2);          // 원본 엑셀 행 번호 — 합계 행을 뺀 뒤에도 원본 번호를 유지
+    const sev = id => { const u = unitOf(rules, id); return u && u.severity ? u.severity : "확인"; };
+    const flag = (i, col, reason, rule) => { rows[i][FLAG].push(reason); flags.push({ row: RN(i), col, reason, rule, key: keyOf(rows[i]), severity: sev(rule), need: needOf(rules, rule) }); };
 
     for (const [col, r] of Object.entries((rules && rules.columns) || {})) {
       if (!cols.includes(col)) continue;
@@ -252,7 +258,7 @@
         if (r.rescale) step("rescale", x => (typeof x === "number" && x > r.rescale.over ? x / r.rescale.divide : x));
         // 글자 «12»가 숫자 12가 된 것처럼 겉보기가 같으면 기록하지 않는다. «2,440,000»→2440000 처럼 모양이 바뀌면 기록한다
         if (String(v) !== String(before) && !(isBlank(v) && isBlank(before))) {
-          log.push({ row: i + 2, col, from: before, to: v, rule: r.why || "", rules: used, key: keyOf(row) });
+          log.push({ row: RN(i), col, from: before, to: v, rule: r.why || "", rules: used, key: keyOf(row) });
         }
         row[col] = v;
 
@@ -269,7 +275,8 @@
       rows.forEach((row, i) => { if (cc.when.every(w => test(row, w))) flag(i, cc.when.map(w => w[0]).join(" · "), cc.label, `cc|${k}`); });
     });
 
-    let kept = rows, src = rows.map((r, i) => i + 2);
+    let kept = rows, src = rows.map((r, i) => RN(i));
+    const allRows = rows.slice();                         // 칸 처방을 적용한 뒤, 줄을 지우기 전 — 금액 대사용
     const dropped = [];
     if (rules && rules.duplicates && rules.duplicates.action === "drop" && on("dup")) {
       const seen = new Map();
@@ -277,9 +284,9 @@
       rows.forEach((row, i) => {
         const k = JSON.stringify(cols.map(c => row[c]));
         if (seen.has(k)) {
-          dropped.push({ row: i + 2, key: keyOf(row), sameAs: seen.get(k), values: cols.map(c => row[c]) });
-          log.push({ row: i + 2, col: "(행 전체)", from: "", to: "지움", rule: rules.duplicates.why || "완전히 같은 행", rules: ["dup"], key: keyOf(row) });
-        } else { seen.set(k, i + 2); kept.push(row); src.push(i + 2); }
+          dropped.push({ row: RN(i), key: keyOf(row), sameAs: seen.get(k), values: cols.map(c => row[c]), cleaned: Object.assign({}, row) });
+          log.push({ row: RN(i), col: "(행 전체)", from: "", to: "지움", rule: rules.duplicates.why || "완전히 같은 행", rules: ["dup"], key: keyOf(row) });
+        } else { seen.set(k, RN(i)); kept.push(row); src.push(RN(i)); }
       });
     }
     const droppedRows = new Set(dropped.map(d => d.row));
@@ -293,7 +300,7 @@
     keptFlags.forEach(f => { byRule[f.rule] = (byRule[f.rule] || 0) + 1; });
     if (dropped.length) byRule.dup = dropped.length;
     return {
-      rows: kept, src, log, cells, flags: keptFlags, dropped,
+      rows: kept, src, log, cells, flags: keptFlags, dropped, allRows,
       summary: {
         before: input.length, after: kept.length, dropped: dropped.length,
         flagged: kept.filter(r => r[FLAG]).length,
@@ -301,6 +308,74 @@
         byColumn, byRule,
       },
     };
+  }
+
+  // 표시 처방의 위험도 · 필요한 근거 — 처방 파일에 적혀 있을 때만 쓴다. 없으면 «확인» · 기본 문구
+  function unitOf(rules, id) {
+    if (!rules || !id) return null;
+    if (id.startsWith("cc|")) return (rules.cross_checks || [])[+id.slice(3)] || null;
+    const col = id.split("|")[0];
+    return (rules.columns || {})[col] || null;
+  }
+  function needOf(rules, id) {
+    const u = unitOf(rules, id);
+    if (u && u.need) return u.need;
+    const step = id && id.split("|")[1];
+    if (step === "missing") return "원본 증빙에서 빠진 값을 확인";
+    if (step === "range") return "원본 증빙에서 값이 맞는지 확인";
+    if (step === "unparsed") return "어느 날짜인지 신청자에게 확인";
+    return "증빙으로 어느 값이 맞는지 확인";
+  }
+
+  /* 합계 · 소계 줄을 데이터와 나눈다. 데이터 품질 진단 · 정리 · 건수에서 뺀다.
+   * 강한 근거: SUM/SUBTOTAL 수식이 있는 줄, 또는 «합계 · 소계 · 총계 · Total» 글자만 있는 칸이 있는 줄
+   * 약한 근거: 마지막 줄인데 첫 칸(식별 값)이 비었고, 채워진 칸이 모두 숫자인 줄 — 사람이 끌 수 있게 reason 에 적는다
+   * formulas: {행 index: [{col, f, v}]} — 화면이 파일에서 읽어 넘긴다 */
+  const TOTAL_WORD = /^\s*(합\s*계|소\s*계|총\s*계|총\s*합|total|subtotal|grand total|sum)\s*$/i;
+  function splitSummary(rows, formulas, inRowNos) {
+    const cols = columnsOf(rows);
+    const data = [], rowNos = [], summary = [];
+    const RN = i => (inRowNos ? inRowNos[i] : i + 2);
+    rows.forEach((r, i) => {
+      const fs = (formulas && formulas[i]) || [];
+      const sumF = fs.filter(x => /^(SUM|SUBTOTAL)\(/i.test(String(x.f).replace(/^=/, "")));
+      const word = cols.find(c => typeof r[c] === "string" && TOTAL_WORD.test(r[c]));
+      const filled = cols.filter(c => !isBlank(r[c]));
+      const weak = i === rows.length - 1 && cols.length > 1 && isBlank(r[cols[0]]) && filled.length > 0
+        && filled.every(c => typeof r[c] === "number") && filled.length <= cols.length / 2;
+      let reason = "";
+      if (sumF.length) reason = `합계 수식 ${sumF.map(x => `${x.col}: =${String(x.f).replace(/^=/, "")}`).join(", ")}`;
+      else if (word) reason = `«${r[word]}» 글자가 있는 줄`;
+      else if (weak) reason = "마지막 줄 · 식별 칸이 비고 숫자만 있음 (합계 행으로 보임)";
+      if (reason) summary.push({ row: RN(i), index: i, values: r, reason, formulas: fs, strong: !!(sumF.length || word) });
+      else { data.push(r); rowNos.push(RN(i)); }
+    });
+    return { data, rowNos, summary };
+  }
+
+  /* 금액 대사 — 원본 합계 행 → 원본 숫자 칸만 → 처방 적용 후(지우기 전) → 지운 줄 → 정리 후.
+   * 정리 후 = 처방 적용 후 − 지운 줄 이 맞아야 «통과». 숫자는 모두 이 자리에서 다시 계산한다. */
+  function reconcile(dataRows, result, cols, summaryRows) {
+    const sum = (list, c, onlyNumber) => list.reduce((a, r) => {
+      const v = r[c];
+      if (typeof v === "number") return a + v;
+      return a;
+    }, 0);
+    const textNums = (list, c) => list.filter(r => typeof r[c] === "string" && !isBlank(r[c])).length;
+    return cols.map(c => {
+      const fileTotal = (summaryRows || []).map(s => s.values[c]).find(v => typeof v === "number");
+      const numbersOnly = sum(dataRows, c);
+      const afterRules = sum(result.allRows, c);
+      const droppedAmt = result.dropped.reduce((a, d) => a + (typeof d.cleaned[c] === "number" ? d.cleaned[c] : 0), 0);
+      const cleaned = sum(result.rows, c);
+      return {
+        col: c, fileTotal: fileTotal === undefined ? null : fileTotal, numbersOnly,
+        textInOriginal: textNums(dataRows, c), textAfter: textNums(result.rows, c),
+        formatDelta: afterRules - numbersOnly, afterRules, droppedAmt, cleaned,
+        ok: Math.abs(afterRules - droppedAmt - cleaned) < 1e-6,
+        fileTotalMatchesNumbers: fileTotal === undefined ? null : Math.abs(fileTotal - numbersOnly) < 1e-6,
+      };
+    });
   }
 
   function same(a, b) {
@@ -435,7 +510,7 @@
     return out;
   }
 
-  const api = { diagnose, ruleUnits, apply, same, compare, conflicts, checkPolicy, FLAG, isBlank, numLike };
+  const api = { diagnose, ruleUnits, apply, same, compare, conflicts, checkPolicy, splitSummary, reconcile, FLAG, isBlank, numLike };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Clean = api;
 })(this);
