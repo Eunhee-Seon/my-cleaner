@@ -240,3 +240,44 @@ details.values p { margin: 6px 0; }
   .sec { padding: 18px 14px; }
   .search { min-width: 0; max-width: none; }
 }
+
+/* ── 첫 화면: 화이트 · 큰 제목 · 업로드 중심 (레드는 주요 버튼에만) ── */
+body { background: #FFFFFF; }
+.sec { border-color: var(--line); }
+.hero { background: transparent; border: 0; border-radius: 0; padding: 56px 0 8px; max-width: 880px; margin: 0 auto; }
+.hero h1 { font-size: 44px; line-height: 1.18; letter-spacing: -1.4px; font-weight: 800; color: var(--ink); margin: 0 0 16px; }
+.lead { font-size: 17px; line-height: 1.6; color: #4A4F55; margin: 0 0 36px; }
+.drop { padding: 48px 24px 40px; gap: 8px; border: 1.5px dashed #C9CDD2; background: #FFFFFF; border-radius: 14px; }
+.drop:hover, .drop.over { border-color: var(--ink); background: #FAFAFA; }
+.drop-icon { color: var(--ink); margin-bottom: 4px; }
+.drop-main { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -.3px; }
+.drop-sub { font-size: 14px; color: var(--dim); margin-bottom: 14px; }
+.drop .btn.primary { padding: 11px 26px; font-size: 15px; }
+.formats { margin-top: 10px; font-size: 12px; letter-spacing: .08em; color: var(--faint); font-weight: 600; }
+.samples { margin: 20px 0 0; gap: 8px; }
+.samples-t { font-size: 13px; font-weight: 700; color: var(--ink); margin-right: 4px; }
+.chipbtn { font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-color: var(--line); color: var(--body); }
+.chipbtn:hover { border-color: var(--ink); color: var(--ink); }
+.samples-n { font-size: 12px; color: var(--faint); margin-left: 4px; }
+.fileinfo { margin: 20px 0 0; font-size: 14px; }
+.privacy { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 40px 0 0; padding: 16px 0 0; border: 0; border-top: 1px solid var(--line2);
+  background: transparent; border-radius: 0; font-size: 13px; color: var(--dim); }
+.privacy svg { color: var(--ink); }
+.privacy b { color: var(--ink); font-weight: 700; }
+.privacy a { color: var(--dim); text-decoration: underline; text-underline-offset: 2px; }
+.privacy a:hover { color: var(--ink); }
+.fine { text-align: left; max-width: 880px; margin: 48px auto 0; color: var(--dim); }
+.fine details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink); }
+.fine ul { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.8; }
+@media (max-width: 900px) {
+  .hero { padding: 32px 0 4px; }
+  .hero h1 { font-size: 30px; letter-spacing: -.8px; }
+  .lead { font-size: 15px; margin-bottom: 24px; }
+  .lead br, .hero h1 br { display: none; }
+}
+.steps { min-width: 0; }   /* 좁은 화면에서 메뉴가 페이지 폭을 밀어내지 않게 — 메뉴 안에서 가로로 넘긴다 */
+@media (max-width: 900px) {
+  .wrap { padding-left: 16px; padding-right: 16px; }
+  .samples-n { flex-basis: 100%; margin-left: 0; }
+}
+.hero h1, .lead, .drop-main, .privacy { word-break: keep-all; }

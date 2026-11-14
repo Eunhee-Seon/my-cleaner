@@ -1,10 +1,10 @@
 /* 엑셀 정리기 — 화면.
  *
- * 파일 → 읽기(SheetJS, 브라우저 안) → 합계 행 분리 → 진단 → 처방 선택(rules/*.json) → 확인 후 정리
+ * 파일 → 읽기(SheetJS, 브라우저 안) → 합계 행 분리 → 진단 → 정리 규칙 선택(rules/*.json) → 확인 후 정리
  *      → 핵심 수치 · 금액 대사 → 원본과 정리본 비교 · 검토 · 중복 제외 → 자동 검증 → 내려받기
  * 서버로 아무것도 보내지 않는다. fetch 는 «내 사이트의» rules/ 와 data/ 를 읽을 때만 쓴다.
  * 사용자 파일 · 규정 파일 · 정답 파일은 이 브라우저 안에서만 읽고, 어디로도 보내지 않는다.
- * 처방은 rules/*.json 에만 있다. 이 파일에는 처방을 적지 않는다. 숫자는 모두 이 자리에서 다시 계산한다.
+ * 정리 규칙은 rules/*.json 에만 있다. 이 파일에는 정리 규칙을 적지 않는다. 숫자는 모두 이 자리에서 다시 계산한다.
  */
 (function () {
   "use strict";
@@ -14,7 +14,7 @@
   const S = {
     name: "", base: "", rows: [], rowNos: [], summary: [], snapshot: "", sheets: [], cols: [],
     rules: null, rulesFrom: "", units: [], enabled: new Set(),
-    pending: null,                      // 충돌을 확인받아야 하는 새 처방
+    pending: null,                      // 충돌을 확인받아야 하는 새 정리 규칙
     preview: null, result: null, idem: null, recon: [],
     policy: null, policyName: "", policyRes: [],
     review: new Map(),                  // 원본 행 → 처리 상태 (이 화면 안에서만, 저장하지 않음)
@@ -88,18 +88,22 @@
 
   function markSteps(upto) { $$(".steps a").forEach(a => a.classList.toggle("done", +a.dataset.step <= upto)); }
 
-  // ── 처방 불러오기 ────────────────────────────────────
+  // ── 정리 규칙 불러오기 ────────────────────────────────────
   async function loadRulesFor() {
+    // 기본 규칙 목록을 먼저 받고, 목록에 있는 이름일 때만 그 규칙 파일을 요청한다 — 올린 파일의 이름을 서버로 보내지 않는다
     let site = null;
     try {
-      const r = await fetch(`rules/${encodeURIComponent(S.base)}.json`);
-      site = r.ok ? await r.json() : null;
+      const idx = await (await fetch("rules/index.json")).json();
+      if ((idx.rules || []).includes(S.base)) {
+        const r = await fetch(`rules/${encodeURIComponent(S.base)}.json`);
+        site = r.ok ? await r.json() : null;
+      }
     } catch (e) { site = null; }
     const saved = store.get(savedKey());
     S.rules = null; S.rulesFrom = "";
-    if (site) useRules(site, `사이트의 rules/${S.base}.json`);
+    if (site) useRules(site, "기본 정리 규칙");
     $("#rules-saved").hidden = !saved;
-    if (saved && !site) offerRules(saved.rules, "이 브라우저에 저장한 처방", saved.enabled);
+    if (saved && !site) offerRules(saved.rules, "이 브라우저에 저장한 규칙", saved.enabled);
     renderRules();
   }
 
@@ -110,7 +114,7 @@
     S.enabled = new Set(enabledIds ? enabledIds.filter(id => ids.includes(id)) : ids);
   }
 
-  // 지금 처방과 새 처방이 부딪히면 자동으로 바꾸지 않고 알린다
+  // 지금 정리 규칙과 새 정리 규칙이 부딪히면 자동으로 바꾸지 않고 알린다
   function offerRules(rules, from, enabledIds) {
     const c = S.rules ? Clean.conflicts(S.rules, rules) : [];
     if (c.length) { S.pending = { rules, from, enabledIds, conflicts: c }; }
@@ -159,10 +163,10 @@
       + "</tbody>";
   }
 
-  // ── 3 처방 선택 ─────────────────────────────────────
+  // ── 3 정리 규칙 선택 ─────────────────────────────────────
   const GROUPS = [
     ["형식", "자동 정리 — 모양만 바꿈", "공백 · 쉼표 · 단위 · 날짜 표기처럼 뜻은 그대로 두고 모양을 맞춥니다."],
-    ["값", "사용자가 승인한 값 바꾸기", "처방 파일에 사람이 적은 매핑표대로만 값을 바꿉니다 (예: «Sales» → «영업»). 표에 없는 값은 그대로 둡니다."],
+    ["값", "사용자가 승인한 값 바꾸기", "규칙 파일에 사람이 적은 매핑표대로만 값을 바꿉니다 (예: «Sales» → «영업»). 표에 없는 값은 그대로 둡니다."],
     ["지움", "줄 지우기 — 금액에 영향", "지울 줄과 금액을 아래에 미리 보여 줍니다. 지운 줄은 «중복 제외»와 제외행목록에 남깁니다."],
     ["표시", "검토 표시 — 고치지 않음", "값을 바꾸지 않고 «검토 사유»를 적습니다. «탐지 기준»은 사용자가 정한 기준이지 회사 규정이 아닙니다."],
   ];
@@ -171,15 +175,15 @@
     const has = !!S.rules;
     $("#rules-missing").hidden = has || !!S.pending;
     $("#rules-src").innerHTML = has
-      ? `처방: <b>${esc(S.rules.title || "처방")}</b> · 정한 사람(승인) <b>${esc(S.rules.owner || "(적혀 있지 않음)")}</b> · ${esc(S.rulesFrom)}`
+      ? `정리 규칙: <b>${esc(S.rules.title || "정리 규칙")}</b> · 정한 사람(승인) <b>${esc(S.rules.owner || "(적혀 있지 않음)")}</b> · ${esc(S.rulesFrom)}`
         + (S.rules.order_note ? `<br>순서 — ${esc(S.rules.order_note)}` : "")
       : "";
     const cf = $("#conflict");
     if (S.pending) {
       cf.hidden = false;
-      cf.innerHTML = `<b>지금 처방(${esc(S.rulesFrom || "없음")})과 새 처방(${esc(S.pending.from)})이 부딪힙니다.</b> 자동으로 고르지 않았습니다. 어느 쪽을 쓸지 정하세요.
+      cf.innerHTML = `<b>지금 정리 규칙(${esc(S.rulesFrom || "없음")})과 새 정리 규칙(${esc(S.pending.from)})이 부딪힙니다.</b> 자동으로 고르지 않았습니다. 어느 쪽을 쓸지 정하세요.
         <ul>${S.pending.conflicts.map(c => `<li>${esc(c)}</li>`).join("")}</ul>
-        <div class="toolbar" style="margin:10px 0 0"><button class="btn" id="cf-keep">지금 처방 그대로</button><button class="btn primary" id="cf-take">새 처방으로 바꾸기</button></div>`;
+        <div class="toolbar" style="margin:10px 0 0"><button class="btn" id="cf-keep">지금 정리 규칙 그대로</button><button class="btn primary" id="cf-take">새 정리 규칙으로 바꾸기</button></div>`;
       $("#cf-keep").onclick = () => { S.pending = null; renderRules(); };
       $("#cf-take").onclick = () => { const p = S.pending; useRules(p.rules, p.from, p.enabledIds); renderDiag(); renderRules(); };
     } else cf.hidden = true;
@@ -200,10 +204,10 @@
     updatePreview();
   }
 
-  // 켠 처방으로 미리 돌려 본다 — 원본은 그대로, 결과는 화면에 쓰지 않는다
+  // 켠 규칙으로 미리 돌려 본다 — 원본은 그대로, 결과는 화면에 쓰지 않는다
   function updatePreview() {
     const btn = $("#btn-apply");
-    if (!S.rules) { $("#confirm-text").innerHTML = `<b>처방이 없어 정리할 수 없습니다.</b>`; btn.disabled = true; $("#drop-preview").hidden = true; return; }
+    if (!S.rules) { $("#confirm-text").innerHTML = `<b>정리 규칙이 없어 정리할 수 없습니다.</b>`; btn.disabled = true; $("#drop-preview").hidden = true; return; }
     const p = S.preview = Clean.apply(S.rows, S.rules, { enabled: [...S.enabled], rowNos: S.rowNos });
     const s = p.summary;
     S.units.forEach(u => {
@@ -218,18 +222,18 @@
     $("#drop-preview").hidden = !p.dropped.length;
     if (p.dropped.length) {
       const tot = c => p.dropped.reduce((a, d) => a + (typeof d.cleaned[c] === "number" ? d.cleaned[c] : 0), 0);
-      $("#drop-preview").innerHTML = `<h3>실행하면 정리본에서 뺄 줄 ${p.dropped.length}건 <span class="tag">처방: 중복</span></h3>
-        <p class="small muted">기준: 처방을 적용한 뒤 모든 칸이 앞 줄과 같은 줄. 금액 합계에 영향을 줍니다. 같은 신청이 아니라면 «줄 지우기» 처방을 끄세요.</p>
+      $("#drop-preview").innerHTML = `<h3>실행하면 정리본에서 뺄 줄 ${p.dropped.length}건 <span class="tag">정리 규칙: 중복</span></h3>
+        <p class="small muted">기준: 정리 규칙을 적용한 뒤 모든 칸이 앞 줄과 같은 줄. 금액 합계에 영향을 줍니다. 같은 신청이 아니라면 «줄 지우기» 정리 규칙을 끄세요.</p>
         <div class="tablebox"><table class="grid"><thead><tr><th class="rn">원본 행</th><th>${esc(S.cols[0])}</th><th>같은 줄</th>${rc.map(c => `<th class="r">${esc(c)}</th>`).join("")}</tr></thead><tbody>`
         + p.dropped.map(d => `<tr><td class="rn">${d.row}</td><td>${esc(d.key)}</td><td>행 ${d.sameAs}</td>${rc.map(c => `<td class="num">${fmt(d.cleaned[c])}</td>`).join("")}</tr>`).join("")
         + `<tr class="total"><td class="rn"></td><td colspan="2">빠지는 금액 합계 (${esc(unitLabel())})</td>${rc.map(c => `<td class="num">${fmt(tot(c))}</td>`).join("")}</tr></tbody></table></div>`;
     }
-    $("#confirm-text").innerHTML = `켠 처방 <b>${S.enabled.size}</b> / ${S.units.length}개 · 예상: 데이터 ${fmt(s.before)}건 → <b>${fmt(s.after)}건</b> ·
+    $("#confirm-text").innerHTML = `켠 규칙 <b>${S.enabled.size}</b> / ${S.units.length}개 · 예상: 데이터 ${fmt(s.before)}건 → <b>${fmt(s.after)}건</b> ·
       값 <b>${fmt(s.changes)}셀</b>(${fmt(s.changedRows)}행) 바뀜 · <b>${fmt(s.dropped)}건</b> 제외 · <b>${fmt(s.flagged)}건</b> 검토 표시<br><span class="muted">원본은 그대로 두고 새 정리본을 만듭니다. 실행은 업무 승인이 아닙니다.</span>`;
     btn.disabled = !!S.pending;
   }
 
-  // 금액 대사에 쓸 칸 — 합계 행에 숫자가 있던 칸, 합계 행이 없으면 처방에서 숫자로 바꾸는 칸
+  // 금액 대사에 쓸 칸 — 합계 행에 숫자가 있던 칸, 합계 행이 없으면 정리 규칙에서 숫자로 바꾸는 칸
   function reconCols() {
     if (!S.rules) return [];
     const fromSummary = S.cols.filter(c => S.summary.some(s => typeof s.values[c] === "number"));
@@ -237,7 +241,7 @@
     return Object.entries(S.rules.columns || {}).filter(([c, r]) => r.number && S.cols.includes(c)).map(([c]) => c);
   }
 
-  // ── 규정 확인 (처방 파일에 policy_fields 가 있을 때만) ──────
+  // ── 규정 확인 (규칙 파일에 policy_fields 가 있을 때만) ──────
   const NEEDS = [
     ["출장 국가 · 도시", f => f.place], ["주 또는 지역", f => f.region], ["출장 시작일", f => f.date], ["출장 종료일 · 숙박일별 날짜", f => f.end],
     ["숙박일(박수)", f => f.nights], ["부서", f => f.dept], ["직무", f => f.job], ["비용항목", f => f.items && Object.keys(f.items).join(" · ")],
@@ -347,13 +351,13 @@
       ["정리 후", `${fmt(s.after)}건`, "정리본 데이터", ""],
       ["변경", `${fmt(s.changes)}셀`, `${fmt(s.changedRows)}행에서`, "", "log"],
       ["중복 제외", `${fmt(s.dropped)}건`, "목록과 금액 보기", "", "drop"],
-      ["검토 필요", `${fmt(rev.length)}건`, `실제 데이터 줄 · 처방 표시 ${fmt(s.flagged)}${pol.length ? ` + 규정` : ""}`, "amber", "review"],
+      ["검토 필요", `${fmt(rev.length)}건`, `실제 데이터 줄 · 정리 규칙 표시 ${fmt(s.flagged)}${pol.length ? ` + 규정` : ""}`, "amber", "review"],
       ["합계 검증", S.recon.length ? (reconOk ? "통과" : "실패") : "대상 없음", "금액 대사 보기", reconOk ? "okc" : "bad", "recon"],
     ].map(kpi).join("");
     renderRecon();
     $("#idem").innerHTML = (S.idem
-      ? `<b class="pass">✓ 두 번 돌려도 같은 결과</b> — 정리본에 같은 처방을 한 번 더 적용해도 바뀌는 것이 없습니다.`
-      : `<b class="fail">✕ 두 번 돌리면 결과가 달라집니다</b> — 처방이 자기 결과를 또 바꿉니다. 처방을 다시 보십시오.`)
+      ? `<b class="pass">✓ 두 번 돌려도 같은 결과</b> — 정리본에 같은 정리 규칙을 한 번 더 적용해도 바뀌는 것이 없습니다.`
+      : `<b class="fail">✕ 두 번 돌리면 결과가 달라집니다</b> — 정리 규칙이 자기 결과를 또 바꿉니다. 정리 규칙을 다시 보십시오.`)
       + (S.rules.policy_fields ? (S.policy
         ? `<br><b>비용 적정성 (${esc(S.policyName)})</b> — ${["한도 안", "한도 초과 — 검토 필요", "예외 승인 조건 해당", "판단 불가"].map(st => `${st} ${pol.filter(p => p.status === st).length}`).join(" · ")} (항목 수)`
         : `<br><b>비용 적정성은 판단하지 않았습니다</b> — 회사 규정 파일이 없습니다. 금액이 크다는 이유만으로 규정 위반으로 보지 않습니다.`) : "");
@@ -370,7 +374,7 @@
     $("#compare").innerHTML = ""; $("#cell-detail").hidden = true;
   }
 
-  // 금액 대사표 — 원본 합계 행 → 숫자 칸만 → 처방 적용 후 → 중복 제외 → 정리 후
+  // 금액 대사표 — 원본 합계 행 → 숫자 칸만 → 정리 규칙 적용 후 → 중복 제외 → 정리 후
   function renderRecon() {
     const R = S.recon;
     if (!R.length) { $("#recon").innerHTML = `<h3>금액 대사</h3><p class="muted small">숫자로 다루는 칸이 없어 금액 대사를 하지 않았습니다.</p>`; return; }
@@ -382,8 +386,8 @@
       + (S.summary.length ? line("① 원본 파일의 합계 행 값", x => x.fileTotal === null ? "—" : fmt(x.fileTotal), "", `행 ${S.summary.map(s => s.row).join(", ")} · ${esc(S.summary[0].reason)}`) : "")
       + line("② 원본 데이터 중 숫자로 저장된 값만 더한 합계", x => fmt(x.numbersOnly), "", "엑셀 SUM 이 보는 값")
       + (S.summary.length ? line("&nbsp;&nbsp;①과 ②", x => x.fileTotalMatchesNumbers === null ? "—" : x.fileTotalMatchesNumbers ? "같음" : `<b class="fail">다름</b>`, "sub") : "")
-      + line("③ 처방으로 더해진 금액 (글자 금액 → 숫자 등)", x => sgn(x.formatDelta) + (x.textInOriginal ? `<div class="small muted">글자 금액 ${x.textInOriginal}건</div>` : ""), "sub")
-      + line("④ 처방 적용 후 전체 합계 (② + ③, 지우기 전)", x => fmt(x.afterRules), "strong")
+      + line("③ 정리 규칙으로 더해진 금액 (글자 금액 → 숫자 등)", x => sgn(x.formatDelta) + (x.textInOriginal ? `<div class="small muted">글자 금액 ${x.textInOriginal}건</div>` : ""), "sub")
+      + line("④ 정리 규칙 적용 후 전체 합계 (② + ③, 지우기 전)", x => fmt(x.afterRules), "strong")
       + line("⑤ 중복으로 뺀 줄의 금액", x => "−" + fmt(x.droppedAmt), "sub", `${S.result.dropped.length}건`)
       + line("⑥ 정리 후 합계 (정리본 데이터 줄에서 다시 계산)", x => fmt(x.cleaned), "strong total")
       + line("검증: ④ − ⑤ = ⑥", x => (x.ok ? `<b class="pass">✓ 통과</b>` : `<b class="fail">✕ 실패</b>`), "sub")
@@ -470,7 +474,7 @@
     d.hidden = false;
     d.innerHTML = `<dl><dt>원본 행 · 칸</dt><dd>${rn} · ${esc((M.orig.get(rn) || {})[S.cols[0]])} · <b>${esc(col)}</b></dd>`
       + (l ? `<dt>원본 값</dt><dd class="from">${esc(fmtCell(l.from))}${typeof l.from === "string" ? " <span class='muted'>(글자)</span>" : ""}</dd><dt>정리 값</dt><dd class="to">${esc(fmtCell(l.to))}${typeof l.to === "number" ? " <span class='muted'>(숫자)</span>" : ""}</dd>
-        <dt>적용 처방</dt><dd>${l.rules.map(id => `<code>${esc(id)}</code> ${esc(unitText(id))}`).join("<br>")}</dd><dt>변경 이유</dt><dd>${esc(l.rule)}</dd>` : "")
+        <dt>적용 정리 규칙</dt><dd>${l.rules.map(id => `<code>${esc(id)}</code> ${esc(unitText(id))}`).join("<br>")}</dd><dt>변경 이유</dt><dd>${esc(l.rule)}</dd>` : "")
       + (fl.length ? `<dt>검토 필요</dt><dd>${fl.map(f => `${esc(f.reason)} <span class="muted">— ${esc(f.need || "")}</span>`).join("<br>")}<br><b>값은 고치지 않았습니다.</b></dd>` : "")
       + "</dl>";
   }
@@ -478,14 +482,14 @@
   function simpleTable(sel, heads, rows, q, opts) {
     const ql = (q || "").trim().toLowerCase();
     const list = ql ? rows.filter(r => r.some(v => String(v).toLowerCase().includes(ql))) : rows;
-    const noteCols = new Set(["이유", "사유", "근거", "처방", "필요한 근거", "기준"]);
+    const noteCols = new Set(["이유", "사유", "근거", "정리 규칙", "필요한 근거", "기준"]);
     $(sel).innerHTML = list.length
       ? `<table class="grid"><thead><tr>${heads.map((h, i) => `<th class="${i === 0 ? "rn" : ""}"><span class="rz">${esc(h)}</span></th>`).join("")}</tr></thead><tbody>${list.slice(0, 3000).map(r =>
         `<tr>${r.map((v, i) => i === 0 ? `<td class="rn">${esc(v)}</td>` : (opts && opts.html && opts.html.includes(i)) ? `<td>${v}</td>` : noteCols.has(heads[i]) ? `<td class="note">${esc(v)}</td>` : cell(v)).join("")}</tr>`).join("")}</tbody>${opts && opts.foot ? opts.foot : ""}</table>`
       : `<p class="empty">${rows.length ? "찾는 조건에 맞는 것이 없습니다." : "없습니다."}</p>`;
   }
   const logRows = () => S.result.cells.map(l => [l.row, l.key, l.col, l.from, l.to, l.rules.join(", "), l.rule]);
-  function drawLog() { simpleTable("#t-log", ["원본 행", "신청번호(첫 칸)", "칸", "원본 값", "정리 값", "처방", "이유"], logRows(), $("#log-q").value); }
+  function drawLog() { simpleTable("#t-log", ["원본 행", "신청번호(첫 칸)", "칸", "원본 값", "정리 값", "정리 규칙", "이유"], logRows(), $("#log-q").value); }
   function drawReview() {
     const all = reviewItems();
     const list = all.filter(x => S.revMode === "all" || String(x.우선) === S.revMode);
@@ -519,7 +523,7 @@
       ["행 수 대사", `원본 데이터 ${fmt(s.before)} = 정리본 ${fmt(s.after)} + 제외 ${fmt(s.dropped)}`, s.before === s.after + s.dropped && r.rows.length === s.after],
       ["변경 기록 대사", `변경기록 ${fmt(r.cells.length)}셀 = 원본과 정리본을 다시 비교해 센 ${fmt(recount)}셀`, r.cells.length === recount],
       ["제외 목록 대사", `제외행목록 ${fmt(r.dropped.length)}건 = 줄 수 차이 ${fmt(s.before - s.after)}`, r.dropped.length === s.before - s.after],
-      ["검토 목록 대사", `검토필요목록 ${fmt(rev.length)}건 ⊇ 처방 표시 ${fmt(flaggedRows.size)}건, 합계 행 포함 0건`, [...flaggedRows].every(x => rev.some(y => y.행 === x)) && !rev.some(y => summaryRowNos.has(y.행))],
+      ["검토 목록 대사", `검토필요목록 ${fmt(rev.length)}건 ⊇ 정리 규칙 표시 ${fmt(flaggedRows.size)}건, 합계 행 포함 0건`, [...flaggedRows].every(x => rev.some(y => y.행 === x)) && !rev.some(y => summaryRowNos.has(y.행))],
       ["금액 대사", S.recon.length ? S.recon.map(x => `${x.col} ${fmt(x.afterRules)} − ${fmt(x.droppedAmt)} = ${fmt(x.cleaned)}`).join(" · ") : "금액 칸 없음", S.recon.every(x => x.ok)],
       ["정리본 합계 = 화면 합계", sheetTotals.map(([c, t]) => `${c} ${fmt(t)}`).join(" · ") || "금액 칸 없음", sheetTotals.every(([c, t]) => { const x = S.recon.find(y => y.col === c); return !x || x.cleaned === t; })],
       ["원본 불변", "읽은 원본 데이터가 처음과 같음", JSON.stringify(S.rows) === S.snapshot],
@@ -613,18 +617,18 @@
   const reconRows = () => S.recon.flatMap(x => [
     { 칸: x.col, 단계: "① 원본 파일의 합계 행 값", 금액: x.fileTotal === null ? "" : x.fileTotal },
     { 칸: x.col, 단계: "② 원본 숫자 칸만 합계", 금액: x.numbersOnly },
-    { 칸: x.col, 단계: "③ 처방으로 더해진 금액", 금액: x.formatDelta },
-    { 칸: x.col, 단계: "④ 처방 적용 후 전체 합계", 금액: x.afterRules },
+    { 칸: x.col, 단계: "③ 정리 규칙으로 더해진 금액", 금액: x.formatDelta },
+    { 칸: x.col, 단계: "④ 정리 규칙 적용 후 전체 합계", 금액: x.afterRules },
     { 칸: x.col, 단계: "⑤ 중복으로 뺀 금액", 금액: -x.droppedAmt },
     { 칸: x.col, 단계: "⑥ 정리 후 합계", 금액: x.cleaned },
     { 칸: x.col, 단계: "검증 ④−⑤=⑥", 금액: x.ok ? "통과" : "실패" },
   ]).map(o => Object.assign(o, { 단위: unitLabel() }));
   const reconSheet = () => makeSheet(["칸", "단계", "금액", "단위"], reconRows());
   const verifySheet = () => makeSheet(["검증", "내용", "결과"], (S.checks || verify()).map(([k, v, p]) => ({ 검증: k, 내용: v, 결과: p ? "통과" : "실패" })));
-  const logObjs = () => S.result.cells.map(l => ({ 신청번호: l.key, 원본행: l.row, 원본칸: l.col, 원본값: l.from, 정리값: l.to, 처방ID: l.rules.join(", "), 처방: l.rules.map(unitText).join(" / "), 변경이유: l.rule, 처리시각: stamp(), 행제거: "아니오" }))
-    .concat(S.result.dropped.map(d => ({ 신청번호: d.key, 원본행: d.row, 원본칸: "(행 전체)", 원본값: "", 정리값: "", 처방ID: "dup", 처방: "중복 — 모든 칸이 같은 줄", 변경이유: `행 ${d.sameAs}과 같음. ${(S.rules.duplicates || {}).why || ""}`, 처리시각: stamp(), 행제거: "예" })));
-  const unitObjs = () => S.units.map(u => ({ 처방ID: u.id, 켬: S.enabled.has(u.id) ? "켬" : "끔", 묶음: u.group, 칸: u.col, 방식: u.how, 이유: u.why, 기준: u.basis || "", 영향: S.result.summary.byRule[u.id] || 0 }));
-  const infoObjs = () => [["파일", S.name], ["처방", `${S.rules.title || ""} (${S.rulesFrom})`], ["처방을 정한 사람", S.rules.owner || ""], ["실행 시각", stamp()],
+  const logObjs = () => S.result.cells.map(l => ({ 신청번호: l.key, 원본행: l.row, 원본칸: l.col, 원본값: l.from, 정리값: l.to, 규칙ID: l.rules.join(", "), 규칙설명: l.rules.map(unitText).join(" / "), 변경이유: l.rule, 처리시각: stamp(), 행제거: "아니오" }))
+    .concat(S.result.dropped.map(d => ({ 신청번호: d.key, 원본행: d.row, 원본칸: "(행 전체)", 원본값: "", 정리값: "", 규칙ID: "dup", 규칙설명: "중복 — 모든 칸이 같은 줄", 변경이유: `행 ${d.sameAs}과 같음. ${(S.rules.duplicates || {}).why || ""}`, 처리시각: stamp(), 행제거: "예" })));
+  const unitObjs = () => S.units.map(u => ({ 규칙ID: u.id, 켬: S.enabled.has(u.id) ? "켬" : "끔", 묶음: u.group, 칸: u.col, 방식: u.how, 이유: u.why, 기준: u.basis || "", 영향: S.result.summary.byRule[u.id] || 0 }));
+  const infoObjs = () => [["파일", S.name], ["정리 규칙", `${S.rules.title || ""} (${S.rulesFrom})`], ["정리 규칙을 정한 사람", S.rules.owner || ""], ["실행 시각", stamp()],
     ["원본 데이터", `${S.result.summary.before}건 (합계 행 ${S.summary.length}줄 별도)`], ["정리 후", `${S.result.summary.after}건`], ["두 번 돌려도 같은가", S.idem ? "같음" : "다름"],
     ["금액 단위", unitLabel()], ["규정 파일", S.policy ? S.policyName : "없음 — 규정 적합성 미판정"], ["상태", "정리 실행 완료 · 업무 승인 대기"]].map(([항목, 값]) => ({ 항목, 값 }));
 
@@ -634,8 +638,8 @@
     saveBook(`${S.base}_정리본.xlsx`, [["정리본", makeSheet(headers, rows, { dateCols: dateCols(), totalCols: reconCols() })], ["금액 대사", reconSheet()], ["자동 검증", verifySheet()]]);
   });
   $("#dl-log").addEventListener("click", () => {
-    const lh = ["신청번호", "원본행", "원본칸", "원본값", "정리값", "처방ID", "처방", "변경이유", "처리시각", "행제거"];
-    saveBook(`${S.base}_변경기록.xlsx`, [["변경 기록", makeSheet(lh, logObjs())], ["적용한 처방", makeSheet(["처방ID", "켬", "묶음", "칸", "방식", "이유", "기준", "영향"], unitObjs())],
+    const lh = ["신청번호", "원본행", "원본칸", "원본값", "정리값", "규칙ID", "규칙설명", "변경이유", "처리시각", "행제거"];
+    saveBook(`${S.base}_변경기록.xlsx`, [["변경 기록", makeSheet(lh, logObjs())], ["적용한 정리 규칙", makeSheet(["규칙ID", "켬", "묶음", "칸", "방식", "이유", "기준", "영향"], unitObjs())],
       ["금액 대사", reconSheet()], ["정보", makeSheet(["항목", "값"], infoObjs())]]);
   });
   const reviewObjs = () => reviewItems().map(x => ({ 우선순위: x.우선 === 1 ? "1 · 금액/데이터 무결성" : "2 · 담당자 확인", 신청번호: x.신청번호, 원본행: x.행, 문제유형: x.유형.join(" · "),
@@ -650,7 +654,7 @@
   $("#dl-log-csv").addEventListener("click", () => saveCsv(`${S.base}_변경기록.csv`, logObjs()));
   $("#dl-review-csv").addEventListener("click", () => saveCsv(`${S.base}_검토필요목록.csv`, reviewObjs()));
 
-  // 켠 처방만 남긴 처방 파일 — 다음 파일에도 다시 쓸 수 있다
+  // 켠 규칙만 남긴 규칙 파일 — 다음 파일에도 다시 쓸 수 있다
   const STEP_KEYS = { trim: ["trim"], map: ["map"], blank_to: ["blank_to"], strip_units: ["strip_units"], number: ["number"], date: ["date"], rescale: ["rescale"], missing: ["missing"], unparsed: ["unparsed"], range: ["range"] };
   function prunedRules() {
     const R = JSON.parse(JSON.stringify(S.rules));
@@ -660,13 +664,13 @@
     });
     R.cross_checks = (R.cross_checks || []).filter((c, i) => S.enabled.has(`cc|${i}`));
     if (!S.enabled.has("dup")) delete R.duplicates;
-    R.saved_note = `엑셀 정리기에서 켠 처방만 남겨 저장 (${new Date().toLocaleString("ko-KR")})`;
+    R.saved_note = `엑셀 정리기에서 켠 규칙만 남겨 저장 (${new Date().toLocaleString("ko-KR")})`;
     return R;
   }
   $("#rules-save").addEventListener("click", () => {
     if (!S.rules) return;
     const ok = store.set(savedKey(), { rules: S.rules, enabled: [...S.enabled], saved_at: new Date().toISOString() });
-    $("#rules-save").textContent = ok ? "이 브라우저에 저장했습니다 ✓" : "저장하지 못했습니다 (브라우저 설정)";
+    $("#rules-save").textContent = ok ? "저장했습니다 ✓" : "저장하지 못했습니다 (브라우저 설정)";
     $("#rules-saved").hidden = !ok;
   });
   $("#rules-export").addEventListener("click", () => {
@@ -677,13 +681,13 @@
   });
   $("#rules-saved").addEventListener("click", () => {
     const saved = store.get(savedKey());
-    if (saved) { offerRules(saved.rules, "이 브라우저에 저장한 처방", saved.enabled); renderDiag(); }
+    if (saved) { offerRules(saved.rules, "이 브라우저에 저장한 규칙", saved.enabled); renderDiag(); }
   });
   $("#rules-file").addEventListener("change", async e => {
     const f = e.target.files[0]; e.target.value = "";
     if (!f) return;
-    try { offerRules(JSON.parse(await f.text()), `내가 고른 파일 ${f.name}`); renderDiag(); }
-    catch (err) { $("#rules-src").textContent = "처방 파일을 읽지 못했습니다 — JSON 형식을 확인하십시오"; }
+    try { offerRules(JSON.parse(await f.text()), `선택한 규칙 파일 ${f.name}`); renderDiag(); }
+    catch (err) { $("#rules-src").textContent = "규칙 파일을 읽지 못했습니다 — JSON 형식을 확인하십시오"; }
   });
   $("#rules-groups").addEventListener("change", e => {
     const id = e.target.dataset.unit;
@@ -738,7 +742,7 @@
     const mine = S.cols;
     const theirs = rows.length ? Object.keys(rows[0]) : [];
     const A = S.rules.answer || {};
-    // 처방 파일에 대조 기준이 없으면: 첫 칸으로 같은 줄을 찾고, 두 파일에 다 있는 나머지 칸을 비교한다
+    // 규칙 파일에 대조 기준이 없으면: 첫 칸으로 같은 줄을 찾고, 두 파일에 다 있는 나머지 칸을 비교한다
     const key = A.key || mine.slice(0, 1);
     const cols = A.compare || mine.filter(c => !key.includes(c) && theirs.includes(c));
     const c = Clean.compare(S.result.rows, rows, key, cols);
@@ -756,6 +760,7 @@
     if (name === "cmp") alignRows();
   }
   $("#btn-apply").addEventListener("click", runApply);
+  $(".privacy a").addEventListener("click", () => { $("#how").open = true; });
   $("#file").addEventListener("change", async e => { const f = e.target.files[0]; e.target.value = ""; if (f) loadFile(await f.arrayBuffer(), f.name); });
   const drop = $("#drop");
   ["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
