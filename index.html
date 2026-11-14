@@ -28,7 +28,7 @@
   <!-- 1 파일 ─────────────────────────────────── -->
   <section id="s-file" class="hero">
     <h1>복잡한 엑셀, <br>명확한 기준으로 정리하세요.</h1>
-    <p class="lead">데이터의 문제를 진단하고, 선택한 규칙에 따라 정리합니다. <br>변경 전후의 차이도 한눈에 확인할 수 있습니다.</p>
+    <p class="lead">데이터의 문제를 진단하고, 선택한 규칙에 따라 정리합니다. <br>변경 전후의 차이도 확인할 수 있습니다.</p>
     <label id="drop" class="drop">
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <svg class="drop-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 15V4m0 0-4 4m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -81,21 +81,21 @@
     </div>
     <div id="rules-groups"></div>
 
-    <div id="policy-box" class="card" hidden>
-      <h3>출장비 규정 확인 <span class="tag">선택</span></h3>
-      <p class="muted small">데이터 <b>형식</b> 정리와 비용 <b>적정성</b> 판단은 별개입니다. 적정성은 회사 규정(1순위) → 회사가 공식 채택한 외부 기준(2순위) 순서로만 확인하고,
-        기준이 없으면 «판단 불가 — 검토 필요»로 남깁니다. 기준 금액을 추정하지 않고, 금액을 바꾸지 않습니다. 규정 파일도 이 브라우저 안에서만 읽습니다.</p>
+    <details id="policy-box" class="card policy" hidden>
+      <summary><b>출장비 규정 대조</b> <span class="tag">선택</span> <span class="muted small">회사 규정이 있을 때만 사용합니다. 등록 전에는 적정성을 판단하지 않습니다.</span></summary>
+      <p class="muted small">형식 정리와 비용 적정성 판단은 별개입니다. 적용 순서는 ① 회사 출장비 규정 ② 회사 규정이 채택한 외부 기준(예: 미국 GSA Per Diem) ③ 기준 없음 → 규정 미설정 · 검토 필요입니다.
+        기준 금액을 추정하거나 원본 금액을 변경하지 않습니다. 외부 기준은 인터넷에서 조회하지 않으며, 회사가 채택한 기준표를 규정 파일에 등록해 사용합니다.</p>
       <div class="pgrid">
         <div><div class="lbl">회사 규정 파일 (.json)</div>
           <label class="btn ghost">규정 파일 선택<input id="policy-file" type="file" accept=".json" hidden></label>
           <button id="policy-template" class="btn link">양식 내려받기</button>
-          <p id="policy-info" class="small muted">아직 고르지 않았습니다.</p></div>
-        <div><div class="lbl">이 파일 금액의 통화</div>
-          <select id="currency"><option value="">모름 — 판단 불가로 남김</option><option>KRW</option><option>USD</option><option>EUR</option><option>JPY</option><option>TWD</option><option>SGD</option></select>
-          <p class="small muted">파일에 통화 칸이 없을 때만 씁니다.</p></div>
+          <p id="policy-info" class="small muted">등록된 규정이 없습니다.</p></div>
+        <div><div class="lbl">금액 통화</div>
+          <select id="currency"><option value="">통화 미확인</option><option>KRW</option><option>USD</option><option>EUR</option><option>JPY</option><option>TWD</option><option>SGD</option></select>
+          <p class="small muted">파일에 통화 열이 없을 때만 지정합니다.</p></div>
         <div><div class="lbl">파일에 있는 정보 / 없는 정보</div><div id="policy-fields" class="small"></div></div>
       </div>
-    </div>
+    </details>
 
     <div id="drop-preview" class="card" hidden></div>
     <div id="confirm" class="confirm">
@@ -107,7 +107,7 @@
   <!-- 4 결과 ─────────────────────────────────── -->
   <section id="s-result" class="sec" hidden>
     <div class="sec-h"><h2><span class="n">4</span>결과 — 핵심 수치와 금액 대사</h2>
-      <p class="muted">원본은 그대로 두고 새 정리본을 만들었습니다. 정리 완료는 업무 승인을 뜻하지 않습니다.</p></div>
+      <p class="muted">원본은 그대로 두고 새 정리본을 만들었습니다. 데이터 검증은 숫자 · 행 수 · 이력이 서로 맞는지 확인한 결과이며, 정산 승인과는 무관합니다.</p></div>
     <div id="status" class="status"></div>
     <div id="res-kpi" class="kpis"></div>
     <div id="recon" class="card"></div>
