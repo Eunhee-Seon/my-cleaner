@@ -3,89 +3,169 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- 이 사이트 밖으로는 아무것도 보내지 않는다: 스크립트·연결은 같은 사이트만, 폼 전송 금지 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<!-- 이 사이트 밖으로는 아무것도 보내지 않는다: 스크립트·글꼴·연결은 같은 사이트만, 폼 전송 금지 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
 <title>엑셀 정리기</title>
-<meta name="description" content="엉망인 엑셀을 끌어다 놓으면 증상을 진단하고, 내가 정한 규칙대로 정리합니다. 파일은 이 브라우저를 떠나지 않습니다.">
+<meta name="description" content="엑셀을 넣으면 진단하고, 내가 정한 처방대로 새 정리본을 만들고, 무엇이 왜 바뀌었는지 보여줍니다. 파일은 이 브라우저를 떠나지 않습니다.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main id="app">
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>엑셀 정리기</div>
+    <nav class="steps" aria-label="단계">
+      <a href="#s-file" data-step="1"><b>1</b>파일</a>
+      <a href="#s-diag" data-step="2"><b>2</b>진단</a>
+      <a href="#s-rules" data-step="3"><b>3</b>처방 선택</a>
+      <a href="#s-result" data-step="4"><b>4</b>전후 비교</a>
+      <a href="#s-down" data-step="5"><b>5</b>내려받기</a>
+    </nav>
+    <span class="lock">브라우저 안에서만 처리</span>
+  </div>
+</header>
 
-  <header class="top">
-    <div class="badge">3주차</div>
-    <h1>엑셀 정리기</h1>
-    <p class="muted">엉망인 파일을 넣으면 <b>증상</b>을 찾고, <b>내가 정한 규칙</b>대로 정리합니다.
-      무엇을 바꿨는지 한 줄씩 남깁니다.</p>
-  </header>
+<main class="wrap">
 
   <!-- 1 파일 ─────────────────────────────────── -->
-  <section class="panel">
-    <div class="step">1 · 파일</div>
+  <section id="s-file" class="hero">
+    <h1>엑셀을 넣으면, 무엇이 왜 바뀌는지 보여 드립니다</h1>
+    <p class="lead">진단 → 처방 선택 → 확인 후 정리 → 원본과 정리본 비교. 사람이 판단할 것은 고치지 않고 표시합니다.</p>
     <label id="drop" class="drop">
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
-      <b>파일을 끌어다 놓거나 눌러서 고르세요</b><br>
-      <span class="muted small">.xlsx · .csv</span><br>
-      <span class="safe">파일은 이 브라우저를 떠나지 않습니다</span>
+      <span class="drop-icon" aria-hidden="true">⇪</span>
+      <span class="drop-main">파일을 여기에 끌어다 놓으세요</span>
+      <span class="btn primary as-btn">파일 고르기</span>
+      <span class="drop-sub">.xlsx · .xls · .csv · 첫 시트를 읽습니다</span>
     </label>
-    <div class="row">
-      <button class="ghost" data-sample="상담이력.xlsx">예시: 상담이력</button>
-      <button class="ghost" data-sample="교육이수로그.csv">예시: 교육이수로그</button>
-      <button class="ghost" data-sample="출장비정산.xlsx">예시: 출장비정산</button>
+    <div class="samples">
+      <span class="muted">예시 파일 (모두 만들어낸 데이터):</span>
+      <button class="chipbtn" data-sample="출장비정산.xlsx">출장비정산</button>
+      <button class="chipbtn" data-sample="상담이력.xlsx">상담이력</button>
+      <button class="chipbtn" data-sample="교육이수로그.csv">교육이수로그</button>
     </div>
-    <p id="file-info" class="small muted" hidden></p>
-    <div id="preview" class="scroll" hidden></div>
+    <div class="privacy">
+      <b>파일은 이 브라우저를 떠나지 않습니다.</b> 읽기 · 진단 · 정리 · 내려받기가 모두 이 컴퓨터 안에서 일어납니다.
+      서버 저장도, 외부 AI 호출도 없습니다. F12 → Network 탭에서 직접 확인할 수 있습니다. 원본 파일은 바꾸지 않고 새 정리본을 만듭니다.
+    </div>
+    <p id="file-info" class="fileinfo" hidden></p>
   </section>
 
   <!-- 2 진단 ─────────────────────────────────── -->
-  <section id="sec-diag" class="panel" hidden style="margin-top:12px">
-    <div class="step">2 · 진단 — 규칙 없이 찾은 증상</div>
-    <div id="symptoms"></div>
-    <details id="values-box">
-      <summary>값 목록 — 눈으로 확인할 것</summary>
-      <p class="small muted">«완료»와 «수료»처럼 뜻이 같은 다른 말은 도구가 알아채지 못합니다. 사람이 봅니다.</p>
-      <div id="values"></div>
-    </details>
+  <section id="s-diag" class="sec" hidden>
+    <div class="sec-h"><h2><span class="n">2</span>진단 — 고치기 전에 찾은 것</h2>
+      <p class="muted">아직 아무것도 고치지 않았습니다. 이상치 후보는 «눈여겨볼 값»이지 오류라는 뜻이 아닙니다.</p></div>
+    <div id="diag-kpi" class="kpis"></div>
+    <div class="toolbar">
+      <div id="diag-filter" class="seg" role="group" aria-label="유형 필터"></div>
+      <input id="diag-q" class="search" type="search" placeholder="칸 이름 · 값 · 행 번호로 찾기">
+    </div>
+    <div class="tablebox"><table id="diag-table" class="grid"></table></div>
+    <details class="values"><summary>값 목록 — 종류가 30가지 이하인 글자 칸</summary>
+      <p class="muted small">«완료»와 «수료»처럼 뜻이 같은 다른 말은 도구가 알아채지 못합니다. 사람이 봅니다.</p>
+      <div id="values"></div></details>
   </section>
 
-  <!-- 3 규칙 ─────────────────────────────────── -->
-  <section id="sec-rules" class="panel" hidden style="margin-top:12px">
-    <div class="step">3 · 처방 — 사람이 정한 것과 그 이유 (rules/&lt;파일 이름&gt;.json)</div>
-    <p id="rules-owner" class="note" hidden></p>
-    <div id="rules"></div>
-    <p id="rules-order" class="small muted"></p>
-    <div class="row">
-      <label class="ghost" style="text-align:center;cursor:pointer;flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;font-weight:700;font-size:14px">
-        처방 파일 고르기<input id="rules-file" type="file" accept=".json" hidden></label>
-      <button id="btn-apply" class="primary">규칙대로 정리</button>
+  <!-- 3 처방 ─────────────────────────────────── -->
+  <section id="s-rules" class="sec" hidden>
+    <div class="sec-h"><h2><span class="n">3</span>처방 선택 — 사람이 정한 것</h2>
+      <p id="rules-src" class="muted"></p></div>
+    <div id="rules-missing" class="alert" hidden>
+      <b>이 파일에 맞는 처방이 없습니다.</b> 처방 파일(.json)을 고르거나, 이 브라우저에 저장해 둔 처방을 쓰세요. 처방 없이 정리하지 않습니다.
+    </div>
+    <div id="conflict" class="alert bad" hidden></div>
+    <div class="toolbar">
+      <label class="btn ghost">처방 파일 고르기<input id="rules-file" type="file" accept=".json" hidden></label>
+      <button id="rules-saved" class="btn ghost" hidden>이 브라우저에 저장한 처방 쓰기</button>
+      <span class="grow"></span>
+      <button id="rules-save" class="btn ghost">선택한 처방을 이 브라우저에 저장</button>
+      <button id="rules-export" class="btn ghost">선택한 처방을 파일로 내려받기</button>
+    </div>
+    <div id="rules-groups"></div>
+
+    <div id="policy-box" class="card" hidden>
+      <h3>출장비 규정 확인 <span class="tag">선택</span></h3>
+      <p class="muted small">데이터 <b>형식</b> 정리와 비용 <b>적정성</b> 판단은 별개입니다. 적정성은 회사 규정(1순위) → 회사가 공식 채택한 외부 기준(2순위) 순서로만 확인하고,
+        기준이 없으면 «판단 불가 — 검토 필요»로 남깁니다. 기준 금액을 추정하지 않고, 금액을 바꾸지 않습니다. 규정 파일도 이 브라우저 안에서만 읽습니다.</p>
+      <div class="pgrid">
+        <div><div class="lbl">회사 규정 파일 (.json)</div>
+          <label class="btn ghost">규정 파일 고르기<input id="policy-file" type="file" accept=".json" hidden></label>
+          <button id="policy-template" class="btn link">양식 내려받기</button>
+          <p id="policy-info" class="small muted">아직 고르지 않았습니다.</p></div>
+        <div><div class="lbl">이 파일 금액의 통화</div>
+          <select id="currency"><option value="">모름 — 판단 불가로 남김</option><option>KRW</option><option>USD</option><option>EUR</option><option>JPY</option><option>TWD</option><option>SGD</option></select>
+          <p class="small muted">파일에 통화 칸이 없을 때만 씁니다.</p></div>
+        <div><div class="lbl">파일에 있는 정보 / 없는 정보</div><div id="policy-fields" class="small"></div></div>
+      </div>
+    </div>
+
+    <div id="confirm" class="confirm">
+      <div id="confirm-text"></div>
+      <button id="btn-apply" class="btn primary big">선택한 처방으로 정리 실행</button>
     </div>
   </section>
 
   <!-- 4 결과 ─────────────────────────────────── -->
-  <section id="sec-result" class="panel" hidden style="margin-top:12px">
-    <div class="step">4 · 결과</div>
-    <div class="stat" id="stats"></div>
-    <p id="idem" class="small" style="margin-top:10px"></p>
-    <details open>
-      <summary>바꾼 것 — 한 줄씩</summary>
-      <div id="log" class="scroll"></div>
-    </details>
-    <div class="row">
-      <button id="dl-clean" class="primary">정리본 내려받기</button>
-      <button id="dl-log" class="ghost">변경 기록 내려받기</button>
+  <section id="s-result" class="sec" hidden>
+    <div class="sec-h"><h2><span class="n">4</span>원본과 정리본 비교</h2>
+      <p class="muted">원본은 그대로 두고 새 정리본을 만들었습니다. 바뀐 칸을 누르면 전 · 후 값과 처방, 이유가 나옵니다.</p></div>
+    <div id="res-kpi" class="kpis"></div>
+    <p id="idem" class="idem"></p>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="cmp" aria-selected="true">전후 비교</button>
+      <button role="tab" data-tab="orig">원본</button>
+      <button role="tab" data-tab="clean">정리본</button>
+      <button role="tab" data-tab="log">변경 기록</button>
+      <button role="tab" data-tab="review">검토 필요</button>
+      <button role="tab" data-tab="drop">제외된 줄</button>
+      <button role="tab" data-tab="answer">정답과 대조</button>
     </div>
-    <details>
-      <summary>정답과 대조 — 정답 파일은 내 컴퓨터에서 고릅니다</summary>
-      <p class="small muted">정답은 완성 기준이 아닙니다. <b>내 규칙이 무엇을 놓쳤는지</b> 보는 거울입니다.</p>
-      <label class="ghost" style="display:block;text-align:center;cursor:pointer;padding:10px;border:1px solid var(--line);border-radius:10px;font-weight:700">
-        정답 파일 고르기<input id="answer-file" type="file" accept=".csv,.xlsx" hidden></label>
-      <div id="compare"></div>
-    </details>
+
+    <div class="tabpane" data-pane="cmp">
+      <div class="toolbar">
+        <div class="seg" id="cmp-filter" role="group" aria-label="보기">
+          <button data-f="touched" aria-pressed="true">바뀐 · 표시 · 지운 줄만</button>
+          <button data-f="changed" aria-pressed="false">바뀐 줄</button>
+          <button data-f="flagged" aria-pressed="false">검토 필요 줄</button>
+          <button data-f="all" aria-pressed="false">모든 줄</button>
+        </div>
+        <input id="cmp-q" class="search" type="search" placeholder="값 · 행 번호로 찾기">
+      </div>
+      <div class="legend"><span class="sw chg"></span>바뀐 칸 <span class="sw flg"></span>검토 필요(고치지 않음) <span class="sw del"></span>지운 줄</div>
+      <div class="split">
+        <div class="pane"><div class="pane-h">원본</div><div class="tablebox tall" id="cmp-left"></div></div>
+        <div class="pane"><div class="pane-h">정리본</div><div class="tablebox tall" id="cmp-right"></div></div>
+      </div>
+      <div id="cell-detail" class="detail" hidden></div>
+    </div>
+    <div class="tabpane" data-pane="orig" hidden><div class="tablebox tall" id="t-orig"></div></div>
+    <div class="tabpane" data-pane="clean" hidden><div class="tablebox tall" id="t-clean"></div></div>
+    <div class="tabpane" data-pane="log" hidden>
+      <div class="toolbar"><input id="log-q" class="search" type="search" placeholder="칸 · 값 · 처방으로 찾기"></div>
+      <div class="tablebox tall" id="t-log"></div></div>
+    <div class="tabpane" data-pane="review" hidden>
+      <p class="muted small">아래 값은 고치지 않았습니다. 진짜 값은 사람이 확인합니다.</p>
+      <div class="toolbar"><input id="rev-q" class="search" type="search" placeholder="사유 · 값으로 찾기"></div>
+      <div class="tablebox tall" id="t-review"></div></div>
+    <div class="tabpane" data-pane="drop" hidden><div class="tablebox tall" id="t-drop"></div></div>
+    <div class="tabpane" data-pane="answer" hidden>
+      <p class="muted small">정답은 완성 기준이 아니라 <b>내 처방이 무엇을 놓쳤는지</b> 보는 거울입니다. 정답 파일은 사이트에 두지 않고 내 컴퓨터에서 고릅니다.</p>
+      <label class="btn ghost">정답 파일 고르기<input id="answer-file" type="file" accept=".csv,.xlsx" hidden></label>
+      <div id="compare"></div></div>
   </section>
 
-  <footer class="fineprint">
-    예시 파일은 전부 만들어낸 것입니다. 정리는 모두 이 브라우저 안에서 일어납니다 — 파일이 어디로도 올라가지 않습니다.
-  </footer>
+  <!-- 5 내려받기 ─────────────────────────────── -->
+  <section id="s-down" class="sec" hidden>
+    <div class="sec-h"><h2><span class="n">5</span>내려받기</h2>
+      <p class="muted">이 컴퓨터에서 바로 만들어 내려받습니다. 어디에도 올라가지 않습니다.</p></div>
+    <div class="downs">
+      <button id="dl-clean" class="dcard"><b>정리본.xlsx</b><span>처방을 적용한 새 파일 · 맨 끝 «_표시» 칸에 검토 사유</span></button>
+      <button id="dl-log" class="dcard"><b>변경기록.xlsx</b><span>바뀐 칸마다 전 · 후 값, 처방, 이유 · 지운 줄</span></button>
+      <button id="dl-review" class="dcard"><b>검토필요목록.xlsx</b><span>고치지 않고 표시한 것 · 규정 판단 불가</span></button>
+    </div>
+    <p class="small muted">CSV가 필요하면: <button id="dl-log-csv" class="btn link">변경기록.csv</button> · <button id="dl-review-csv" class="btn link">검토필요목록.csv</button> (엑셀에서 한글이 깨지지 않게 저장)</p>
+  </section>
+
+  <footer class="fine">예시 파일은 전부 만들어낸 데이터입니다. 처방은 <code>rules/&lt;파일 이름&gt;.json</code>에 사람이 적고, 이 화면은 그대로 할 뿐입니다.</footer>
 </main>
 
 <script src="lib/xlsx.full.min.js"></script>

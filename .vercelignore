@@ -6,8 +6,9 @@ README.md
 tools/
 진단/
 .claude/
-*_정리본.csv
-*_변경기록.csv
+*_정리본.*
+*_변경기록.*
+*_검토필요목록.*
 정리본/
 .env
 .env.*
