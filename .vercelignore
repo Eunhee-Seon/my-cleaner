@@ -1,0 +1,13 @@
+# 저장소에만 올린다 — 배포에는 넣지 않는다
+CLAUDE.md
+README.md
+
+# 어디에도 올리지 않는다 (.gitignore 와 같게)
+tools/
+진단/
+.claude/
+*_정리본.csv
+*_변경기록.csv
+정리본/
+.env
+.env.*
